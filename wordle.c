@@ -42,14 +42,37 @@ int word_picker() {
     return (seed % (VALID_WORDS + 1));
 }
 
-//Checks if a word is valid ------ Needs to be optimized 
+//Checks if a word is valid ------ Binary Search
 int word_check(char word[10], char validWords[][7]) {
-    for (int i=0; i<NO_OF_WORDS; i++) {
-        int j=0;
-        for (int k=0; k<5; k++) {
-            if (toupper(word[k])==toupper(validWords[i][k])) j++;
+    int low = 0;
+    int high = VALID_WORDS-1;
+    while (low<=high){
+        int mid = (low+high)/2;
+        int comp = strcasecmp(word,validWords[mid]);
+        if (comp == 0){
+            return 0;
         }
-        if (j==5) return 0;
+        else if(comp > 0){
+            low = mid+1;
+        }
+        else {
+            high = mid-1;
+        }
+    }
+    low = VALID_WORDS;
+    high = NO_OF_WORDS-1;
+    while (low<=high){
+        int mid = (low+high)/2;
+        int comp = strcasecmp(word,validWords[mid]);
+        if (comp == 0){
+            return 0;
+        }
+        else if(comp > 0){
+            low = mid+1;
+        }
+        else {
+            high = mid-1;
+        }
     }
     return 1;
 }
