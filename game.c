@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include "game.h"
 
 //colors
 #define COLOR_RESET  "\x1b[39;49m"           
@@ -13,6 +14,16 @@
 #define NO_OF_WORDS  12979
 #define VALID_WORDS  2315
 
+//Initially opens the Today struct
+void openFile(today *tdy) {
+    FILE* file_ptr;
+    file_ptr=fopen("data.bin","rb+");
+    fseek(file_ptr,sizeof(streak),SEEK_SET);
+    fread(tdy,sizeof(today),1,file_ptr);
+    fclose(file_ptr);
+}
+
+//Uses binary search to check if a word is valid
 int word_check(char word[10], char validWords[][7]) {
     int low = 0;
     int high = VALID_WORDS-1;
@@ -47,73 +58,137 @@ int word_check(char word[10], char validWords[][7]) {
     return 1;
 }
 
-void gameLogic(char guess[20],char word[10],int status, char validWords[][7]){
-    for (int i=1; i<=6; i++) {
-        fgets(guess, 20, stdin);
-        if (status == 1) {
-            printf("\x1b[A\x1b[2K");
-        }
+//The bread and butter Game Loop of comparing the word and printing the word with appropriate colors :3
+int gameLoop(int *status,char guess[20],char word[10],char validWords[][7],int comp) {
+    int checker = 0;
+    if (*status == 1) {
         printf("\x1b[A\x1b[2K");
+        *status = 0;
+    }
+    if (comp == 1) {
+        printf("\x1b[A\x1b[2K");
+    }
+    
+    if (strlen(guess) != 6) {
+        printf(COLOR_RED "Please Enter a 5-Letter Word" COLOR_RESET "\n");
+        *status = 1;
+        return 0;
+    }
+    int resp = word_check(guess, validWords);
+    if (resp == 1) {
+        printf(COLOR_RED "Please Enter a valid Word" COLOR_RESET "\n");
+        *status = 1;
+        return 0;
+    }
 
-        if (strlen(guess) != 6) {
-            printf(COLOR_RED "Please Enter a 5-Letter Word" COLOR_RESET "\n");
-            status = 1;
-            i--;
-            continue;
+    char hash[10];
+    char colors[5][10] = {COLOR_BLACK,COLOR_BLACK,COLOR_BLACK,COLOR_BLACK,COLOR_BLACK}; 
+    strcpy(hash,word);
+    
+    //word comparision
+    for (int j=0; j<5; j++) {
+        if (toupper(guess[j]) == toupper(hash[j])) {
+            hash[j] = '\0';
+            strcpy(colors[j],COLOR_GREEN);
+            checker++;
         }
-        int resp = word_check(guess, validWords);
-        if (resp == 1) {
-            printf(COLOR_RED "Please Enter a valid Word" COLOR_RESET "\n");
-            status = 1;
-            i--;
-            continue;
-        }
+    }
+    for (int j=0; j<5; j++) {
+        if (strcmp(colors[j], COLOR_GREEN) == 0) continue;
+        for (int t = 0; t < 5; t++) {
+            if (hash[t] != '\0' && toupper(guess[j]) == toupper(hash[t])) {
+                strcpy(colors[j], COLOR_YELLOW);
+                hash[t] = '\0';
+                break;
+            }
+        }    
+    }
 
-        char hash[10];
-        char colors[5][10] = {COLOR_BLACK,COLOR_BLACK,COLOR_BLACK,COLOR_BLACK,COLOR_BLACK}; 
-        strcpy(hash,word);     
-        int checker = 0;
-        
-        //word comparision
-        for (int j=0; j<5; j++) {
-            if (toupper(guess[j]) == toupper(hash[j])) {
-                hash[j] = '\0';
-                strcpy(colors[j],COLOR_GREEN);
-                checker++;
+    //print the word
+    for (int j=0; j<5; j++) {
+        printf("%s %c "COLOR_RESET " ",colors[j],toupper(guess[j]));
+    }
+    printf("\n");
+
+    //win condition
+    if (checker == 5) {
+        printf("CONGRATS!!\n");
+        return 1;
+    }
+    return 2;
+}
+
+//Saves the current iteration of today
+void saveTodayState(const today *tdy) {
+    FILE* file_ptr;
+    file_ptr=fopen("data.bin","rb+");
+    fseek(file_ptr,sizeof(streak),SEEK_SET);
+    fwrite(tdy,sizeof(today),1,file_ptr);
+    fclose(file_ptr);
+}
+
+
+//-----------------------------------------------------------------------------------------------------
+
+int gameLogic(char word[10], char validWords[][7],today tdy,int date){
+    int status = 0;
+    char guess[20];
+    openFile(&tdy);
+    if (date != tdy.date){
+        tdy.date=date;
+        tdy.status=1;
+        tdy.wordsPlayed=0;
+        for (int i = 0; i < 6; i++) {
+            strcpy(tdy.wordsUsed[i], "");
+        }
+        saveTodayState(&tdy);
+    }
+    else {
+        for (int i=0;i<tdy.wordsPlayed;i++) {
+            int x = gameLoop(&status,tdy.wordsUsed[i],word,validWords,0);
+            
+            if (x == 1) return 2;
+            if (i == 5) {
+                printf("You Lost!!\n");
+                for (int k = 0; k < 5; k++) {
+                    printf(COLOR_BLUE " %c " COLOR_RESET " ",toupper(word[k]));
+                }
+                printf(" was the correct word.\nBetter Luck Tomorrow\n");
+                return 2;
             }
         }
-        for (int j=0; j<5; j++) {
-            if (strcmp(colors[j], COLOR_GREEN) == 0) continue;
-            for (int t = 0; t < 5; t++) {
-                if (hash[t] != '\0' && toupper(guess[j]) == toupper(hash[t])) {
-                    strcpy(colors[j], COLOR_YELLOW);
-                    hash[t] = '\0';
-                    break;
-                }
-            }    
+    }
+    int done=tdy.wordsPlayed;
+
+    for (int i=tdy.wordsPlayed; i<6; i++) {
+        fgets(guess, 20, stdin);
+        int x = gameLoop(&status,guess,word,validWords,1);
+
+        if (x == 0) {
+            i--;
+            continue;
+        }
+        if (x == 1) {
+            tdy.wordsPlayed++;
+            strcpy(tdy.wordsUsed[i],guess);
+            saveTodayState(&tdy);
+            return 1;
+        }
+        if (x == 2) {
+            tdy.wordsPlayed++;
+            strcpy(tdy.wordsUsed[i],guess);
+            saveTodayState(&tdy);
         }
 
-        //print the word
-        for (int j=0; j<5; j++) {
-            printf("%s %c "COLOR_RESET " ",colors[j],toupper(guess[j]));
-        }
-        printf("\n");
-
-        //win condition
-        if (checker == 5) {
-            printf("CONGRATS!!\n");
-            break;
-        }
-
-        //lose condition
-        if (i == 6) {
+        if (i == 5) {
             printf("You Lost!!\n");
             for (int k = 0; k < 5; k++) {
                 printf(COLOR_BLUE " %c " COLOR_RESET " ",toupper(word[k]));
             }
             printf(" was the correct word.\nBetter Luck Tomorrow\n");
-            break;
+            return 0;
         }
-        status = 0;
     }
 }
+
+//-----------------------------------------------------------------------------------------------------
