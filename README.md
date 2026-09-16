@@ -2,3 +2,10 @@
 A lightweight, zero-dependency, daily Wordle game made in C.
 
 Syncs the word between every device using the date from their device.
+
+```bash
+# Compile
+gcc wordle.c game.c -o wordle_game
+
+# Run
+./wordle_game
